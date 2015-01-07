@@ -1,55 +1,65 @@
-/*
+/* -*- c -*-
 This work is public domain.
  
- This is a fork of https://github.com/dewy721/EMC-2-Arduino/downloads and has been heavily modified to:
- 1. work with the arduino leonardo chipset.
- 2. be simple for novice programmers to follow (possible futile)
- 3. Work with mm
- 4. Use a servo for it's z axis
- 5. Support an LCD
- 6. Support custom hardware https://github.com/lukeweston/CNCPlotter
+This is a fork of https://github.com/dewy721/EMC-2-Arduino/downloads
+and has been heavily modified to:
+
+  1. Work with the arduino leonardo chipset.
+  2. Be simple for novice programmers to follow (possibly futile)
+  3. Work with mm
+  4. Use a servo for it's z axis
+  5. Support an LCD
+  6. Support custom hardware https://github.com/lukeweston/CNCPlotter
  
- Work on this was mostly performed by John Spencer and Bob Powers.
+Work on this was mostly performed by John Spencer and Bob Powers.
  
- Please note: Although there are a LOT pin settings here.
- You can get by with as few as TWO pins per Axis. (dir & step)
- ie: 3 axies = 6 pins used. (minimum)
- 9 axies = 18 pins or an entire UNO (using virtual limits switches only)
- This version is cut down to 3 axis.
+Please note: Although there are a LOT pin settings here you can get by
+with as few as TWO pins per Axis (dir & step).
+
+   ie: 3 axies = 6 pins used. (minimum)
+       9 axies = 18 pins or an entire UNO
+                 (using virtual limits switches only)
+
+This version is cut down to 3 axis.
  
- Note concerning switches: Be smart!
- AT LEAST use HOME switches.
- Switches are cheap insurance.
- You'll find life a lot easier if you use them entirely.
+Note concerning switches: Be smart!
+  - AT LEAST use HOME switches.
+  - Switches are cheap insurance.
+  - You'll find life a lot easier if you use them entirely.
  
- If you choose to build with threaded rod for lead screws but leave out the switches
- You'll have one of two possible outcomes;
- You'll get tired really quickly of resetting the machine by hand.
- Or worse, you'll forget (only once) to reset it, and upon homing
- it WILL destroy itself while you go -> WTF!? -> OMG! -> PANIC! -> FACEPALM!
+If you choose to build with threaded rod for lead screws but leave out
+the switches you'll have one of two possible outcomes:
+
+  1. You'll get tired really quickly of resetting the machine by hand;
+     or worse
+
+  2. You'll forget (only once) to reset it, and upon homing it WILL
+     destroy itself while you go -> WTF!? -> OMG! -> PANIC! ->
+     FACEPALM!
  
- List of axies. All 3 of them.
- AXIS_0 = X (Left/Right)
- AXIS_1 = Y (Near/Far) Lathes use this for tool depth.
- AXIS_2 = Z (Up/Down) Not typically used for lathes. Except lathe/mill combo.
+List of axies. All 3 of them.
+  - AXIS_0 = X (Left/Right)
+  - AXIS_1 = Y (Near/Far) Lathes use this for tool depth.
+  - AXIS_2 = Z (Up/Down) Not typically used for lathes. Except
+    lathe/mill combo.
+  
+Remember, LinuxCNC sends out a bunch of stepper commands rather than
+an exact location which means tuning the speed LinuxCNC sends out
+commands is important.
  
+DYI robot builders: You can monitor/control this sketch via a serial
+interface.  Example commands:
  
- Remember, LinuxCNC sends out a bunch of stepper commands rather than an exact location
- This means tuning the speed LinuxCNC sends out commands is important.
+  jog x200;
+  jog x-215.25 y1200 z0.002 a5;
  
- 
- DYI robot builders: You can monitor/control this sketch via a serial interface.
- Example commands:
- 
- jog x200;
- jog x-215.25 y1200 z0.002 a5;
- 
- PS: If you choose to control this with your own interface then also modify the
- divisor variable further down.
- */
+PS: If you choose to control this with your own interface then also
+modify the divisor variable further down.
+
+*/
 
 // You'll need this library. Get the interrupt safe version.
-#include <digitalWriteFast.h> // http://code.google.com/p/digitalwritefast/
+#include <digitalWriteFast.h>      // http://code.google.com/p/digitalwritefast/
 #include <LiquidCrystal_SR_LCD3.h> // https://github.com/marcmerlin/NewLiquidCrystal
 
 #include <Servo.h> 
@@ -76,7 +86,10 @@ byte pos;
 #define BAUD 115200
 
 // These will be used in the near future.
-#define VERSION "00072.2"      // 5 characters seems arbitrary.  the .1 will give us an idea what version is uploaded to the arduino while we're developing.
+#define VERSION "00072.2"    // 5 characters seems arbitrary.  the .1
+			     // will give us an idea what version is
+			     // uploaded to the arduino while we're
+			     // developing.
 #define ROLE    "hackCNC   " // 10 characters
 
 
@@ -98,7 +111,7 @@ byte pos;
 
 //set very low because it's essentially digital, cutting down on z commands.
 #define stepsPerInchZ 1
-#define stepsPerMmZ 1
+#define stepsPerMmZ   1
 
 //#define minStepTime 25 //delay in MICROseconds between step pulses.
 //#define minStepTime 625
@@ -106,13 +119,13 @@ byte pos;
 #define stepTime 77 // 8 rotations / second
 
 // step pins (required)
-#define stepPin0 10 //x step D10 - pin 30
-#define stepPin1 8 //y step D8 - pin 28
+#define stepPin0 10 // x step D10 - pin 30
+#define stepPin1  8 // y step D8 - pin 28
 #define stepPin2 -1 // z step
 
 // dir pins (required)
-#define dirPin0 11 //x dir D11 - pin 12
-#define dirPin1 9 //y dir D9 - pin 29
+#define dirPin0 11 // x dir D11 - pin 12
+#define dirPin1  9 // y dir D9 - pin 29
 #define dirPin2 -1 // z dir
 
 // microStepping pins (optional)
@@ -157,17 +170,17 @@ byte pos;
 
 // If your using REAL switches you'll need real pins (ignored if using Virtual switches).
 // -1 = not used.
-#define xMinPin -1
-#define yMinPin -1
-#define zMinPin -1
+#define xMinPin  -1
+#define yMinPin  -1
+#define zMinPin  -1
 
 #define xHomePin -1
 #define yHomePin -1
 #define zHomePin -1
 
-#define xMaxPin -1
-#define yMaxPin -1
-#define zMaxPin -1
+#define xMaxPin  -1
+#define yMaxPin  -1
+#define zMaxPin  -1
 
 //#define powerSwitchIsMomentary true // Set to true if your using a momentary switch.
 //#define powerPin    -1 // Power switch. Optional
@@ -184,17 +197,17 @@ byte pos;
 
 // Signal inversion for real switch users. (false = ground trigger signal, true = +5vdc trigger signal.)
 // Note: Inverted switches will need pull-down resistors (less than 10kOhm) to lightly ground the signal wires.
-#define xMinPinInverted false
-#define yMinPinInverted false
-#define zMinPinInverted false
+#define xMinPinInverted   false
+#define yMinPinInverted   false
+#define zMinPinInverted   false
 
-#define xHomePinInverted false
-#define yHomePinInverted false
-#define zHomePinInverted false
+#define xHomePinInverted  false
+#define yHomePinInverted  false
+#define zHomePinInverted  false
 
-#define xMaxPinInverted false
-#define yMaxPinInverted false
-#define zMaxPinInverted false
+#define xMaxPinInverted   false
+#define yMaxPinInverted   false
+#define zMaxPinInverted   false
 
 #define eStopPinInverted  false
 #define powerPinInverted  false
@@ -209,22 +222,22 @@ byte pos;
 // doesn't change its point of reference when homing, so we need to
 // move the minimum positions so we know when we are at the home
 // position
-#define xMin 0
-#define yMin 0
+#define xMin   0
+#define yMin   0
 #define zMin -10
 
 // Where should the VIRTUAL home switches be set to (ignored if using real switches).
 // Set to whatever you specified in the StepConf wizard.
-#define xHome 0
-#define yHome 0
-#define zHome 0
+#define xHome  0
+#define yHome  0
+#define zHome  0
 
 // Where should the VIRTUAL Max switches be set to (ignored if using real switches).
 // Set to whatever you specified in the StepConf wizard.
 // updated for mm
 #define xMax 140
 #define yMax 100
-#define zMax 10
+#define zMax  10
 
 const bool giveFeedBackX = false;
 const bool giveFeedBackY = false;
@@ -367,7 +380,16 @@ void jog(float x, float y, float z)
 
   // only check the limit switches if it's not homed
   // We want to mark as true if either pos or homed are true, not both
-  // if(!useRealMinX){if(pos_x > xMin || ( pos_x <= xMin && !xHomed)){xMinState=true;}else{xMinState=false;}}else{xMinState=digitalReadFast(xMinPin);if(xMinPinInverted)xMinState=!xMinState;}
+  // if(!useRealMinX){
+  //   if(pos_x > xMin || ( pos_x <= xMin && !xHomed))
+  //     {xMinState=true;}
+  //   else
+  //     {xMinState=false;}
+  // }else{
+  //   xMinState=digitalReadFast(xMinPin);
+  //   if(xMinPinInverted)xMinState=!xMinState;
+  // }
+
   // make some of this a function?
   // TODO: Home errors for all axis should go to the LCD
   if(!useRealMinX){
